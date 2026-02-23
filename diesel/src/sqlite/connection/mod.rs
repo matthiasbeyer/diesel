@@ -10,6 +10,7 @@ mod owned_row;
 mod raw;
 mod row;
 mod serialized_database;
+mod sqlite_blob;
 mod sqlite_value;
 mod statement_iterator;
 mod stmt;
@@ -372,6 +373,18 @@ impl SqliteConnection {
         E: From<Error>,
     {
         self.transaction_sql(f, "BEGIN EXCLUSIVE")
+    }
+
+    pub fn get_blob<'conn, T>(&'conn self, target: T) -> QueryResult<()>
+        where T: IntoUpdateTarget,
+            T: Copy,
+            T: crate::Identifiable,
+            T: IntoUpdateTarget,
+            T::Table: crate::query_dsl::methods::FindDsl<T::Id>,
+            crate::dsl::Find<T::Table, i32>: crate::query_dsl::LoadQuery<'conn, SqliteConnection, i32>,
+    {
+        let pkey: i32 = T::table().filter(target.id()).select(T::table().primary_key())?;
+        todo!()
     }
 
     fn transaction_sql<T, E, F>(&mut self, f: F, sql: &str) -> Result<T, E>
