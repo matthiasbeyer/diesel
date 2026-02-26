@@ -375,16 +375,24 @@ impl SqliteConnection {
         self.transaction_sql(f, "BEGIN EXCLUSIVE")
     }
 
-    pub fn get_blob<'conn, T>(&'conn self, target: T) -> QueryResult<()>
-        where T: IntoUpdateTarget,
+    pub fn get_blob<'conn, 'query, 't, U, T>(&'conn self, target: T) -> Result<sqlite_blob::SqliteBlob<'conn>, Error>
+        where
+            'query: 'conn,
+            't: 'query,
+            T: 't,
             T: Copy,
-            T: crate::Identifiable,
-            T: IntoUpdateTarget,
-            T::Table: crate::query_dsl::methods::FindDsl<T::Id>,
-            crate::dsl::Find<T::Table, i32>: crate::query_dsl::LoadQuery<'conn, SqliteConnection, i32>,
+            T: crate::Identifiable<Table = U::Table>,
+            <T as crate::Identifiable>::Id: Into<i64>,
+            U: crate::Column,
+            U::Table: nodes::StaticQueryFragment<Component = diesel::internal::table_macro::Identifier<'static>>,
     {
-        let pkey: i32 = T::table().filter(target.id()).select(T::table().primary_key())?;
-        todo!()
+        use crate::query_builder::nodes::StaticQueryFragment;
+
+        let pkey: i64 = target.id().into();
+        let column_name = U::NAME;
+        let table_name = U::Table::STATIC_COMPONENT;
+
+        self.raw_connection.blob_open(table_name.0, column_name, pkey)
     }
 
     fn transaction_sql<T, E, F>(&mut self, f: F, sql: &str) -> Result<T, E>
